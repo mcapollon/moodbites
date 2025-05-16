@@ -61,6 +61,25 @@ const RecipeRecommendation: React.FC = () => {
     setCurrentStep('facial');
   };
 
+  const handleGetNewRecipes = async () => {
+    setIsLoading(true);
+    setIsSaved(false);
+    setCurrentRecipeIndex(0);
+    try {
+      const recipeType = await getMoodMatchedRecipeType(moodAnalysis);
+      setRecipeReason(recipeType.reason);
+      const recipes = await getRecipeRecommendations(recipeType);
+      setRecommendedRecipes(recipes);
+      if (recipes.length > 0) {
+        setRecipe(recipes[0]);
+      }
+    } catch (error) {
+      console.error('Failed to fetch new recipes:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const currentRecipe = recommendedRecipes[currentRecipeIndex];
 
   if (isLoading) {
@@ -161,13 +180,14 @@ const RecipeRecommendation: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-3 justify-between mt-6 pt-4 border-t border-gray-100">
-          <div className="flex gap-2">
+        <div className="flex flex-col gap-4 mt-6 pt-4 border-t border-gray-100">
+          <div className="flex flex-col sm:flex-row gap-2 w-full">
             <Button
               variant={isSaved ? "outline" : "primary"}
               leftIcon={<Heart size={16} className={isSaved ? "text-rose-500 fill-rose-500" : ""} />}
               onClick={handleSaveRecipe}
               disabled={isSaved}
+              className="flex-1 min-w-[140px]"
             >
               {isSaved ? "Saved" : "Save Recipe"}
             </Button>
@@ -175,14 +195,23 @@ const RecipeRecommendation: React.FC = () => {
               variant="secondary"
               rightIcon={<ArrowRight size={16} />}
               onClick={handleNextRecipe}
+              className="flex-1 min-w-[140px]"
             >
               Next Recipe
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleGetNewRecipes}
+              className="flex-1 min-w-[140px]"
+            >
+              Get 3 New Recipes
             </Button>
           </div>
           <Button
             variant="outline"
             leftIcon={<RefreshCw size={16} />}
             onClick={handleStartOver}
+            className="w-full"
           >
             Start Over
           </Button>

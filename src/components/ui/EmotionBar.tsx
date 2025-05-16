@@ -3,10 +3,9 @@ import { Emotion } from '../../types';
 
 interface EmotionBarProps {
   emotion: Emotion;
-  index: number;
 }
 
-const EmotionBar: React.FC<EmotionBarProps> = ({ emotion, index }) => {
+const EmotionBar: React.FC<EmotionBarProps> = ({ emotion }) => {
   // Colors for different emotions
   const colors: Record<string, string> = {
     happy: 'bg-green-500',
@@ -17,9 +16,6 @@ const EmotionBar: React.FC<EmotionBarProps> = ({ emotion, index }) => {
     fear: 'bg-purple-500',
     disgust: 'bg-orange-500',
   };
-  
-  // Animation delay for staggered appearance
-  const animationDelay = `${index * 0.1}s`;
   
   return (
     <div className="mb-2">
@@ -32,17 +28,10 @@ const EmotionBar: React.FC<EmotionBarProps> = ({ emotion, index }) => {
           className={`h-full ${colors[emotion.type] || 'bg-teal-500'} rounded-full transition-all duration-1000`}
           style={{ 
             width: `${emotion.confidence}%`,
-            animationDelay,
-            animation: 'growWidth 1s ease-out forwards'
+            transition: 'width 1s ease-out',
           }}
         ></div>
       </div>
-      <style jsx>{`
-        @keyframes growWidth {
-          from { width: 0; }
-          to { width: ${emotion.confidence}%; }
-        }
-      `}</style>
     </div>
   );
 };

@@ -3,6 +3,7 @@ import { MessageSquare, ArrowRight } from 'lucide-react';
 import Card from './ui/Card';
 import Button from './ui/Button';
 import { useAppContext } from '../context/AppContext';
+import { analyzeSentiment } from '../services/voiceAPI';
 
 const TextInput: React.FC = () => {
   const { updateMoodAnalysis, setCurrentStep, setStepCompleted } = useAppContext();
@@ -11,43 +12,50 @@ const TextInput: React.FC = () => {
   const [comfortDesire, setComfortDesire] = useState(5);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setIsSubmitting(true);
-    
-    // Determine primary emotion based on text input
-    // This is a simplified version - in a real app, you'd use NLP
-    const moodWords = {
-      happy: ['happy', 'joy', 'excited', 'good', 'great', 'wonderful', 'fantastic'],
-      sad: ['sad', 'upset', 'depressed', 'down', 'blue', 'unhappy', 'miserable'],
-      angry: ['angry', 'mad', 'frustrated', 'annoyed', 'irritated', 'furious'],
-      neutral: ['okay', 'fine', 'alright', 'neutral', 'normal'],
-      anxious: ['anxious', 'nervous', 'worried', 'stressed', 'concerned'],
-      tired: ['tired', 'exhausted', 'sleepy', 'fatigued', 'drained'],
-    };
-    
+    // Combine all user input into a single string for sentiment analysis
+    const combinedText = `Mood: ${moodDescription}. Energy level: ${energyLevel}/10. Comfort desire: ${comfortDesire}/10.`;
     let primaryEmotion = 'neutral';
-    let highestCount = 0;
-    
-    Object.entries(moodWords).forEach(([emotion, words]) => {
-      const count = words.filter(word => 
-        moodDescription.toLowerCase().includes(word)
-      ).length;
-      
-      if (count > highestCount) {
-        highestCount = count;
-        primaryEmotion = emotion;
+    try {
+      const sentiment = await analyzeSentiment(combinedText);
+      // Handle NLP Cloud scored_labels array
+      if (sentiment?.scored_labels && Array.isArray(sentiment.scored_labels) && sentiment.scored_labels.length > 0) {
+        primaryEmotion = sentiment.scored_labels[0].label || 'neutral';
+      } else if (sentiment?.label) {
+        primaryEmotion = sentiment.label;
+      } else if (sentiment?.sentiment) {
+        primaryEmotion = sentiment.sentiment;
       }
-    });
-    
-    // If no matches found, use energy level to determine mood
-    if (highestCount === 0) {
-      if (energyLevel >= 7) {
-        primaryEmotion = 'happy';
-      } else if (energyLevel <= 3) {
-        primaryEmotion = 'tired';
+    } catch (err) {
+      console.error('Sentiment analysis failed:', err);
+      // fallback to old logic if API fails
+      const moodWords = {
+        happy: ['happy', 'joy', 'excited', 'good', 'great', 'wonderful', 'fantastic'],
+        sad: ['sad', 'upset', 'depressed', 'down', 'blue', 'unhappy', 'miserable'],
+        angry: ['angry', 'mad', 'frustrated', 'annoyed', 'irritated', 'furious'],
+        neutral: ['okay', 'fine', 'alright', 'neutral', 'normal'],
+        anxious: ['anxious', 'nervous', 'worried', 'stressed', 'concerned'],
+        tired: ['tired', 'exhausted', 'sleepy', 'fatigued', 'drained'],
+      };
+      let highestCount = 0;
+      Object.entries(moodWords).forEach(([emotion, words]) => {
+        const count = words.filter(word => 
+          moodDescription.toLowerCase().includes(word)
+        ).length;
+        if (count > highestCount) {
+          highestCount = count;
+          primaryEmotion = emotion;
+        }
+      });
+      if (highestCount === 0) {
+        if (energyLevel >= 7) {
+          primaryEmotion = 'happy';
+        } else if (energyLevel <= 3) {
+          primaryEmotion = 'tired';
+        }
       }
     }
-    
     // Update context with text input analysis
     updateMoodAnalysis({
       text: {
@@ -56,7 +64,6 @@ const TextInput: React.FC = () => {
         comfortDesire,
       }
     });
-    
     setTimeout(() => {
       setIsSubmitting(false);
       setStepCompleted('text');

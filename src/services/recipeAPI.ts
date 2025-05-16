@@ -8,47 +8,134 @@ interface RecipeType {
   comfort: number;
 }
 
-// This would be replaced with actual Spoonacular API integration
 export const getRecipeRecommendations = async (recipeType: RecipeType): Promise<Recipe[]> => {
-  // Simulate API call with a delay
-  await new Promise(resolve => setTimeout(resolve, 2000));
-  
-  // Mock recipes based on recipe type
-  const mockRecipes: Record<string, Recipe[]> = {
-    'fresh and vibrant': [
-      createMockRecipe(1, 'Citrus Avocado Salad', 'A bright, refreshing salad with mixed greens, avocado, and citrus segments', 15, 2, 90, recipeType.reason),
-      createMockRecipe(2, 'Summer Berry Smoothie Bowl', 'A vibrant smoothie bowl topped with fresh berries and granola', 10, 1, 85, recipeType.reason),
-      createMockRecipe(3, 'Mediterranean Chickpea Bowl', 'Fresh vegetables, chickpeas, and feta cheese with a lemon dressing', 20, 2, 95, recipeType.reason),
-    ],
-    'comfort food': [
-      createMockRecipe(4, 'Classic Mac and Cheese', 'Creamy, cheesy pasta baked to perfection', 35, 4, 60, recipeType.reason),
-      createMockRecipe(5, 'Homestyle Chicken Soup', 'Warming chicken soup with vegetables and herbs', 45, 6, 75, recipeType.reason),
-      createMockRecipe(6, 'Chocolate Chip Cookies', 'Warm, gooey chocolate chip cookies like grandma used to make', 25, 12, 50, recipeType.reason),
-    ],
-    'spicy and robust': [
-      createMockRecipe(7, 'Spicy Beef Tacos', 'Fiery beef tacos with homemade salsa and lime', 25, 4, 70, recipeType.reason),
-      createMockRecipe(8, 'Thai Red Curry', 'Bold, aromatic curry with vegetables and your choice of protein', 30, 4, 80, recipeType.reason),
-      createMockRecipe(9, 'Buffalo Cauliflower Bites', 'Crispy cauliflower coated in spicy buffalo sauce', 35, 4, 65, recipeType.reason),
-    ],
-    'balanced and nourishing': [
-      createMockRecipe(10, 'Quinoa Power Bowl', 'Protein-packed quinoa with roasted vegetables and tahini dressing', 30, 2, 95, recipeType.reason),
-      createMockRecipe(11, 'Baked Salmon with Vegetables', 'Omega-rich salmon with seasonal vegetables', 25, 2, 100, recipeType.reason),
-      createMockRecipe(12, 'Hearty Vegetable Soup', 'A mix of seasonal vegetables in a savory broth', 40, 6, 90, recipeType.reason),
-    ],
-    'unique and unexpected': [
-      createMockRecipe(13, 'Watermelon Gazpacho', 'A surprising twist on traditional gazpacho using fresh watermelon', 20, 4, 85, recipeType.reason),
-      createMockRecipe(14, 'Lavender Honey Ice Cream', 'Homemade ice cream infused with lavender and sweetened with honey', 240, 8, 60, recipeType.reason),
-      createMockRecipe(15, 'Savory Oatmeal with Egg', 'A savory take on traditionally sweet oatmeal, topped with a fried egg', 15, 1, 80, recipeType.reason),
-    ],
-    'simple and familiar': [
-      createMockRecipe(16, 'Classic Grilled Cheese', 'The ultimate comfort sandwich with melted cheese', 10, 1, 50, recipeType.reason),
-      createMockRecipe(17, 'Tomato Basil Pasta', 'Simple pasta with fresh tomatoes and basil', 20, 2, 70, recipeType.reason),
-      createMockRecipe(18, 'Baked Potato with Toppings', 'A familiar favorite with your choice of toppings', 60, 1, 65, recipeType.reason),
-    ],
+  const SPOONACULAR_API_KEY = '3d81d4064beb448c927ee25370a5bdee';
+  const baseUrl = 'https://api.spoonacular.com/recipes/complexSearch';
+
+  // Helper to fetch and map recipes by query
+  const fetchRecipesByQuery = async (query: string, n: number) => {
+    const params = new URLSearchParams({
+      apiKey: SPOONACULAR_API_KEY,
+      query,
+      number: String(n),
+      sort: 'random', // Add random sort for more variety
+    });
+    const url = `${baseUrl}?${params.toString()}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Failed to fetch recipes from Spoonacular');
+    const data = await res.json();
+    if (!data.results || !Array.isArray(data.results) || data.results.length === 0) return [];
+    return data.results;
   };
+
+  // Try the GPT-recommended type first
+  const primaryResults = await fetchRecipesByQuery(recipeType.type || 'comfort food', 10);
+  let allResults = [...primaryResults];
+
+  // If less than 3, try a random fallback query and merge unique
+  if (allResults.length < 3) {
+    const fallbackQueries = ['dinner', 'lunch', 'main course', 'easy', 'healthy', 'quick', 'vegetarian', 'chicken', 'pasta', 'soup'];
+    const fallbackQuery = fallbackQueries[Math.floor(Math.random() * fallbackQueries.length)];
+    const fallbackResults = await fetchRecipesByQuery(fallbackQuery, 10);
+    const ids = new Set(allResults.map((r: any) => r.id));
+    for (const r of fallbackResults) {
+      if (!ids.has(r.id)) {
+        allResults.push(r);
+        ids.add(r.id);
+      }
+      if (allResults.length >= 15) break;
+    }
+  }
+
+  // Deduplicate by id (in case of overlap)
+  const uniqueResults: any[] = [];
+  const seen = new Set();
+  for (const r of allResults) {
+    if (!seen.has(r.id)) {
+      uniqueResults.push(r);
+      seen.add(r.id);
+    }
+  }
+
+  // Shuffle unique results for variety
+  function shuffle<T>(array: T[]): T[] {
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+  }
+  const shuffledResults = shuffle(uniqueResults);
+
+  // If still less than 3, duplicate as needed
+  while (shuffledResults.length < 3 && shuffledResults.length > 0) {
+    shuffledResults.push(shuffledResults[shuffledResults.length % shuffledResults.length]);
+    if (shuffledResults.length > 10) break;
+  }
+  if (shuffledResults.length === 0) return [];
+
+  // Fetch detailed info for each recipe, but continue if some fail
+  const detailPromises = shuffledResults.slice(0, 3).map(async (r: any) => {
+    try {
+      const detailUrl = `https://api.spoonacular.com/recipes/${r.id}/information?apiKey=${SPOONACULAR_API_KEY}`;
+      const detailRes = await fetch(detailUrl);
+      if (!detailRes.ok) throw new Error('Failed to fetch recipe details from Spoonacular');
+      const detail = await detailRes.json();
+      return {
+        id: detail.id,
+        title: detail.title,
+        image: detail.image,
+        readyInMinutes: detail.readyInMinutes,
+        servings: detail.servings,
+        healthScore: detail.healthScore || 0,
+        moodMatch: recipeType.reason,
+        ingredients: (detail.extendedIngredients || []).map((ing: any, idx: number) => ({
+          id: ing.id || idx + 1,
+          name: ing.name,
+          amount: ing.amount,
+          unit: ing.unit,
+        })),
+        instructions: parseInstructions(detail.analyzedInstructions),
+      };
+    } catch (err) {
+      console.error('Error fetching recipe detail:', err);
+      return null;
+    }
+  });
+
+  const recipesWithNulls = await Promise.all(detailPromises);
+  const recipes: Recipe[] = recipesWithNulls.filter((r): r is Recipe => r !== null);
+  // If after all, still <3, duplicate as needed
+  while (recipes.length < 3 && recipes.length > 0) {
+    recipes.push(recipes[recipes.length % recipes.length]);
+    if (recipes.length > 10) break;
+  }
+  return recipes.slice(0, 3);
+};
+
+function parseInstructions(analyzedInstructions: any): Instruction[] {
+  if (!Array.isArray(analyzedInstructions) || !analyzedInstructions[0] || !Array.isArray(analyzedInstructions[0].steps)) return [];
+  return analyzedInstructions[0].steps.map((step: any) => ({
+    number: step.number,
+    step: step.step,
+  }));
+}
+
+export const getRecipeDetails = async (recipeId: number): Promise<Recipe> => {
+  // In a real app, this would call the API to get detailed recipe info
+  // For this mock, we'll simulate a delay and return a mock recipe
+  await new Promise(resolve => setTimeout(resolve, 1000));
   
-  // Default to balanced if the type isn't found
-  return mockRecipes[recipeType.type] || mockRecipes['balanced and nourishing'];
+  // Create a mock recipe with the given ID
+  return createMockRecipe(
+    recipeId,
+    'Detailed Recipe ' + recipeId,
+    'A detailed description for recipe ' + recipeId,
+    30,
+    4,
+    80,
+    'This recipe matches your current mood because it provides the right balance of comfort and energy.'
+  );
 };
 
 // Helper function to create mock recipes
@@ -128,20 +215,3 @@ function getRandomInstruction(step: number): string {
   ];
   return instructions[step % instructions.length];
 }
-
-export const getRecipeDetails = async (recipeId: number): Promise<Recipe> => {
-  // In a real app, this would call the API to get detailed recipe info
-  // For this mock, we'll simulate a delay and return a mock recipe
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  
-  // Create a mock recipe with the given ID
-  return createMockRecipe(
-    recipeId,
-    'Detailed Recipe ' + recipeId,
-    'A detailed description for recipe ' + recipeId,
-    30,
-    4,
-    80,
-    'This recipe matches your current mood because it provides the right balance of comfort and energy.'
-  );
-};

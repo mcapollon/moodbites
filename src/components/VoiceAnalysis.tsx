@@ -214,8 +214,8 @@ const VoiceAnalysis: React.FC = () => {
                 {analysisResult.primaryEmotion}
               </p>
               <div className="mt-4">
-                {analysisResult.emotions.map((emotion, index) => (
-                  <EmotionBar key={emotion.type} emotion={emotion} index={index} />
+                {analysisResult.emotions.map((emotion) => (
+                  <EmotionBar key={emotion.type} emotion={emotion}  />
                 ))}
               </div>
             </div>
