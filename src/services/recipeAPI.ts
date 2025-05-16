@@ -9,7 +9,7 @@ interface RecipeType {
 }
 
 export const getRecipeRecommendations = async (recipeType: RecipeType): Promise<Recipe[]> => {
-  const SPOONACULAR_API_KEY = '3d81d4064beb448c927ee25370a5bdee';
+  const SPOONACULAR_API_KEY = '195fa19f510f4072857e1209c1b19411';
   const baseUrl = 'https://api.spoonacular.com/recipes/complexSearch';
 
   // Helper to fetch and map recipes by query
